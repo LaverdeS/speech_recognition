@@ -1,0 +1,6 @@
+tensorflow~=1.15.0
+tensorflow-gpu~=2.2.0
+setuptools~=47.1.1
+IPython
+playsound
+google-api-python-client
