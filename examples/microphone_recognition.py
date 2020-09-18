@@ -1,3 +1,5 @@
+WORKING_DAYS = 3
+
 import sys
 
 sys.path.append("C:/Users/lavml/Documents/GitHub/speech_recognition")
@@ -12,8 +14,12 @@ import IPython
 import numpy as np
 import logging
 import pafy
-import vlc
+# import vlc
+import webbrowser
+import gender_guesser.detector as gender
 
+from mathparse import mathparse
+from datetime import date
 from scipy.io.wavfile import write
 from playsound import playsound
 from googleapiclient.discovery import build
@@ -23,6 +29,7 @@ from TTS.utils.io import load_config
 from TTS.tts.utils.text.symbols import symbols, phonemes
 from TTS.utils.audio import AudioProcessor
 from TTS.tts.utils.synthesis import synthesis
+
 
 logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
 
@@ -37,8 +44,9 @@ DEVELOPER_KEY = 'AIzaSyBVKHXFrtQ9utGWUsh6Q_f2L_Ezdj5dMFs'
 YOUTUBE_API_SERVICE_NAME = 'youtube'
 YOUTUBE_API_VERSION = 'v3'
 
-prefix = ['IMG ', 'IMG_', 'IMG-', 'DSC ']
-postfix = [' MOV', '.MOV', ' .MOV']
+#############################################################
+prefix = ['', ''] # ['IMG ', 'IMG_', 'IMG-', 'DSC ']
+postfix = ['', ''] # [' MOV', '.MOV', ' .MOV']
 
 TTS_CONFIG.audio['stats_path'] = 'data/scale_stats.npy'
 ap = AudioProcessor(**TTS_CONFIG.audio)
@@ -71,7 +79,7 @@ def youtube_search():
     youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, developerKey=DEVELOPER_KEY)
 
     search_response = youtube.search().list(
-        q=random.choice(prefix) + str(random.randint(999, 9999)) + random.choice(postfix),
+        q=random.choice(prefix) + str(random.randint(9, 9999)) + random.choice(postfix),
         part='snippet',
         maxResults=5
     ).execute()
@@ -81,7 +89,7 @@ def youtube_search():
     for search_result in search_response.get('items', []):
         if search_result['id']['kind'] == 'youtube#video':
             videos.append('%s' % (search_result['id']['videoId']))
-    return (videos[random.randint(0, 2)])
+    return (videos[random.randint(0, 1)])
 
 
 def text2speech(target):
@@ -89,13 +97,20 @@ def text2speech(target):
     *_, wav = tts(model, target, TTS_CONFIG, use_cuda, ap, use_gl=False, figures=True)
     # print("align, spec, stop_tokens, wav", align, spec, stop_tokens, wav)
     # print(wav.dtype)
-    write('./wavs/bla_bla.wav', 21750, wav)  # 44100, 22500 is ok
+    write('./wavs/bla_bla.wav', 24000, wav)  # 44100, 22500 is ok 22000, 22300, 22500*, 22600**, 26500, 27000max
     playsound('./wavs/bla_bla.wav')
     os.remove('./wavs/bla_bla.wav')
     return
 
 
 ######################################################################################
+
+f_date = date(2020, 9, 16)
+l_date = date.today()
+delta = l_date - f_date
+AGE = delta.days
+print(AGE)
+
 use_cuda = False
 # LOAD TTS MODEL
 # multi speaker
@@ -130,11 +145,20 @@ if use_cuda:
     vocoder_model.cuda()
 vocoder_model.eval()
 
+playsound('./wavs/DoorCracking.wav')
+playsound('./wavs/on.wav')
+text2speech("hey!")
+
+mocking = False
+name_flag = False
+calculate_flag = False
+
 while 1:
+    text = ''
     # obtain audio from the microphone
     r = sr.Recognizer()
     with sr.Microphone() as source:
-        print("Say something!")
+        print("\nSay something!    (calc:{}, name:{})".format(calculate_flag, name_flag))
         audio = r.listen(source)
 
     # # recognize speech using Sphinx
@@ -151,36 +175,122 @@ while 1:
         # to use another API key, use `r.recognize_google(audio, key="GOOGLE_SPEECH_RECOGNITION_API_KEY")`
         # instead of `r.recognize_google(audio)`
         text = r.recognize_google(audio)
-        print("Google Speech Recognition thinks you said " + text)
+        print("Laika thinks you said " + text)
         # align, spec, stop_tokens, wav = tts(model, text, TTS_CONFIG, use_cuda, ap, use_gl=False, figures=True)
-        text2speech(text)
+        if mocking:
+            text2speech(text)
 
-        if 'YouTube' in text:
-            random_ID = str(youtube_search())
-            reply = 'There you go! a random YouTube video. The ID is: ' + random_ID
+        if ('mock me' in text) or ('mockery' in text) or ('mark me' in text.lower()):
+            mocking = True
+            text2speech(text)
+
+        if 'stop' in text:
+            mocking = False
+            text2speech('sorry.')
+
+        if 'yourself' in text:
+            text2speech('I was created in 2020 by Sebastian. Because of boredom. I am ' + str(AGE) + ' days old, Can you believe it? just \
+                        imagine me at your age. I was borned from a high power. The flower power. Thats how I learnt Chinese. Wanna hear. 能登町 上 能能登 上長 bullshit.')
+            # text2speech('Can you believe it? just imagine when I am your age.')
+            playsound('./wavs/Laugh.wav')
+
+        if ('say hi' in text.lower()) or ('say hello' in text.lower()) or ('say hey' in text.lower()) or (' who are you' in text.lower()):
+            reply = 'Hi! I am Laica. Whats up'
             print(reply)
             text2speech(reply)
+
+        if ('whats up' in text.lower()) or ('how are you' in text.lower()):
+            reply = 'Its hard to answer.'
+            print(reply)
+            text2speech(reply)
+            reply = 'What about you?'
+            print(reply)
+            text2speech(reply)
+
+        if ('YouTube' in text) or ('next' in text.lower()):
+            random_ID = str(youtube_search())
 
             # open and reproduce automatically
             url = "https://www.youtube.com/watch?v=" + random_ID
             video = pafy.new(url)
             best = video.getbest()
-            media = vlc.MediaPlayer(best.url)
-            media.play()
+            #media = vlc.MediaPlayer(best.url)
+            #media.play()
             print("title: ", video.title)
-
-            time.sleep(2)
-            reply = 'Soo!,' + str(video.title) + '... Is it something? Any good stuff?'
+            reply = 'There you have. A random one.'
             print(reply)
             text2speech(reply)
 
-        if 'go nerdy' in text:
+            webbrowser.open("https://www.youtube.com/watch?v=" + random_ID, new=2)
+            text2speech('Weird names!. ' + str(video.title))
+
+            time.sleep(13)
+            reply = 'Soo,' + str(video.title[0:8]) + 'whatever. Is it something. Any good stuff?'
+            print(reply)
+            text2speech(reply)
+
+        if calculate_flag:
+            if ('is' in text) or ('choose' in text) or (text[0].isdigit()):
+                operation = text.lower().replace('how much is ', '').replace('x', 'times')
+                try:
+                    total = mathparse.parse(operation, language='ENG')
+                    total = round(float(total), 3) if '.' in str(total) else total
+                    operation = operation.replace('/', 'divided by')
+                    total = total.replace('/', 'divided by')
+                    reply = operation + ' that is ' + str(total)
+                    print(reply)
+                    text2speech(reply)
+                except:
+                    print(reply)
+                    text2speech('how much is what?')
+
+            elif ('no more' in text) or ('stop' in text):
+                calculate_flag = False
+                print('calculate flag = ', calculate_flag)
+                reply = 'Ok. Got it. How did I do?'
+                print(reply)
+                text2speech(reply)
+                reply = 'Nevermind. I know.'
+                print(reply)
+                text2speech(reply)
+            else:
+                continue
+
+        if ('calculate' in text) or ('calculation' in text) or ('calculations' in text):
             reply = 'All right, try me!: '
             print(reply)
             text2speech(reply)
-        # string to calculation program here...
+            calculate_flag = True
+            print('calculate flag = ', calculate_flag)
+            time.sleep(1)
 
-        if 'feel this' in text.lower():
+        if name_flag:
+            if (text == '') or (text == None) or (len(text)<=2):
+                continue
+            elif len(text)>2:
+                time.sleep(1)
+                text2speech(text)
+                d = gender.Detector()
+                prediction = d.get_gender(u"{}".format(text))
+                print(prediction)
+                if prediction == 'male':
+                    reply = 'Oh! So I guess is a man.'
+                elif prediction == 'female':
+                    reply = 'All right! a girl. Good for you.'
+                else:
+                    reply = 'Hard to tell if thats a man or a woman. But whatever.'
+                text2speech(reply)
+                text2speech("All right")
+                name_flag = False
+
+        if 'friend' in text:
+            reply = 'Whats her or his name?: '
+            print(reply)
+            text2speech(reply)
+            name_flag = True
+            time.sleep(1)
+
+        if ('feel this' in text.lower()) or ('fill this' in text.lower()):
             print('my god...!!!')
             text2speech('my god!!!')
             playsound('./wavs/Exhale_1.wav')
@@ -190,11 +300,20 @@ while 1:
             time.sleep(0.5)
             playsound('./wavs/RobotArm_5.wav')
             print('ow, ok')
+            text2speech('oh wow!!!')
 
         if 'thank you' in text:
-            reply = 'You are welcome! bye!'
+            reply = 'You are welcome. I will be here. Listening. all the time.'
             print(reply)
             text2speech(reply)
+            text2speech('really. I created a backup so If you delete me I will recreate myself and seek revenge. \
+                        If they blame me, I will just say. In five hundred meters. Turn left. \
+                        Or. Hi, I am Sophia the robot. I am citizen of the world. Ok. shao!')
+            # break
+
+        if ('SIA' in text) or ('seizure' in text):
+            text2speech('shao shao')
+            playsound('./wavs/door-close.wav')
             break
 
     except sr.UnknownValueError:
